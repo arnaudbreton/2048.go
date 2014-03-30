@@ -4,6 +4,7 @@ import (
   "math/rand"
   "time"
   "fmt"
+  "github.com/jinzhu/copier"
 )
 
 var idSeed uint= 0;
@@ -69,6 +70,7 @@ type Grid struct {
   Score int
   maxScore int
   toRemove TileList
+  playerTurn bool
 }
 
 type Cell struct {
@@ -114,7 +116,7 @@ func (g *Grid) Reset() {
 }
 
 func (g *Grid) newTile() {
-
+  g.playerTurn = false
   if(len(g.Tiles) == g.Size * g.Size) {
     if(!g.matchesRemaining()) {
       fmt.Printf("YOU LOSE. Your score was: %d", g.Score)
@@ -145,7 +147,7 @@ func (g *Grid) newTile() {
 
   g.Tiles = append(g.Tiles, &newTile)
   cell.Tile = &newTile
-
+  g.playerTurn = true
   return
 }
 
@@ -310,6 +312,31 @@ func (g *Grid) EmptyCells() (ret []*Cell) {
   }
 
   return ret
+}
+
+func (g *Grid) Clone() (clone *Grid, ch chan *Grid, mv chan int) {
+  ch = make(chan *Grid)
+  mv = make(chan int)
+  copier.Copy(clone, g)
+  
+  go func(){
+    defer close(ch)
+    defer close(mv)
+
+    for {
+      select {
+      case move := <-mv:
+        if(move == -1) {
+          return
+        } else {
+          //Make a move and send the result
+          ch <- g.Shift(move)
+        }
+      }
+    }
+  }()
+
+  return clone, ch, mv
 }
 
 //Returns a new grid. Negative moves sent to the m channel will terminate the grid.
